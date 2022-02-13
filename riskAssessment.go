@@ -1,5 +1,11 @@
 package main
 
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+)
+
 type TransactionRecords struct {
 	Transactions []Transaction `json:"transactions"`
 }
@@ -16,15 +22,35 @@ type ResponseOutput struct {
 }
 
 func main() {
-
-	//fmt.Printf("hey")
+	handler := http.HandlerFunc(riskAssessmentHandler)
+	http.Handle("/risk_assessment", handler)
+	err := http.ListenAndServe(":8090", nil)
+	if err != nil {
+		fmt.Printf(err.Error())
+		return
+	}
 }
 
 func convertCentsToDollars(cents int) int {
 	return cents / 100
 }
 
+func riskAssessmentHandler(w http.ResponseWriter, r *http.Request) {
+	var transactionRecords TransactionRecords
+	err := json.NewDecoder(r.Body).Decode(&transactionRecords)
+	if err != nil {
+		fmt.Printf(err.Error())
+		return
+	}
+	err = json.NewEncoder(w).Encode(riskAssessment(transactionRecords))
+	if err != nil {
+		fmt.Printf(err.Error())
+		return
+	}
+}
+
 func riskAssessment(transactionData TransactionRecords) ResponseOutput {
+	//fmt.Printf("test")
 	var riskRatings []string
 	for transaction := 0; transaction < len(transactionData.Transactions); transaction++ {
 		var totalAmountSpent int
@@ -33,14 +59,14 @@ func riskAssessment(transactionData TransactionRecords) ResponseOutput {
 		var cardsBeingUsed []int
 
 		if transaction > 0 {
-			for value := 0; value < transaction; value++ {
+			for value := 0; value <= transaction; value++ {
 				if transactionData.Transactions[transaction].UserID == transactionData.Transactions[value].UserID {
 					if len(cardsBeingUsed) == 0 {
 						cardsBeingUsed = append(cardsBeingUsed, transactionData.Transactions[transaction].CardID)
 					}
 					totalAmountSpent += transactionData.Transactions[value].AmountUsCents
 					if transactionData.Transactions[transaction].CardID != transactionData.Transactions[value].CardID {
-						cardsBeingUsed = append(cardsBeingUsed, transactionData.Transactions[transaction].CardID)
+						cardsBeingUsed = append(cardsBeingUsed, transactionData.Transactions[value].CardID)
 					}
 				}
 			}
@@ -58,6 +84,7 @@ func riskAssessment(transactionData TransactionRecords) ResponseOutput {
 			riskRatings = append(riskRatings, "low")
 		}
 	}
+	//fmt.Printf("eof")
 	return ResponseOutput{
 		riskRatings,
 	}
